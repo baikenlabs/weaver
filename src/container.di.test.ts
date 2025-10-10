@@ -1,11 +1,14 @@
 import { DIContainer } from './container.di';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { Logger } from './logging/logger';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('DIContainer', () => {
   let container: DIContainer;
 
   beforeEach(() => {
     container = new DIContainer();
+    // Disable Logger for tests
+    vi.spyOn(Logger, 'error').mockImplementation(() => {});
   });
 
   it('SHOULD return null WHEN class is not found', () => {
