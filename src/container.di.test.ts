@@ -271,7 +271,7 @@ describe('DIContainer', () => {
     container.register(TestClass);
 
     expect(() => {
-      container.resolve<TestClass>(TestClass);
+      container.resolve<TestClass>(TestClass).getValue();
     }).toThrow('Unable to resolve service: undefined');
   });
 });

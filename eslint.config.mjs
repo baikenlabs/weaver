@@ -36,6 +36,7 @@ export default [
       'prettier/prettier': 'error',
     },
   },
+  
   {
     files: ['src/logging/logger.ts'],
     rules: {
