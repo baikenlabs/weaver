@@ -1,0 +1,12 @@
+src/
+node_modules/
+.DS_Store
+*.test.ts
+*.test.js
+vitest.config.ts
+tsconfig.json
+.nvmrc
+coverage/
+.vscode/
+.idea/
+*.log
