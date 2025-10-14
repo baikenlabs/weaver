@@ -1,12 +1,37 @@
+# Source files
 src/
-node_modules/
-.DS_Store
+examples/
+
+# Tests
 *.test.ts
+*.spec.ts
 *.test.js
-vitest.config.ts
-tsconfig.json
-.nvmrc
+*.spec.js
+**/*.test.ts
+**/*.spec.ts
 coverage/
+
+# Config files
+.github/
 .vscode/
 .idea/
+.husky/
+tsconfig.json
+vitest.config.ts
+eslint.config.js
+.prettierrc
+.prettierignore
+.gitignore
+.nvmrc
+
+# Development files
+node_modules/
 *.log
+.DS_Store
+.env
+.env.local
+.env.*.local
+
+# Build artifacts
+*.tsbuildinfo
+dist/tsconfig.tsbuildinfo

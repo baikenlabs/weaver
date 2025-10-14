@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+      - stg
+  pull_request:
+    branches:
+      - main
+      - dev
+      - stg
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x, 22.x]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Build package
+        run: npm run build
+
+      - name: Upload coverage reports
+        if: matrix.node-version == '20.x'
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
+
+  branch-info:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: PR Branch Info
+        run: |
+          TARGET_BRANCH="${{ github.base_ref }}"
+
+          echo "## 🔀 Pull Request Information" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Source Branch**: \`${{ github.head_ref }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Target Branch**: \`$TARGET_BRANCH\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$TARGET_BRANCH" = "main" ]; then
+            echo "✅ **Merging to \`main\`** will publish a **RELEASE** version to NPM with \`latest\` tag" >> $GITHUB_STEP_SUMMARY
+          elif [ "$TARGET_BRANCH" = "dev" ]; then
+            echo "📸 **Merging to \`dev\`** will publish a **SNAPSHOT** version to NPM with \`snapshot\` tag" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Snapshot version format: \`x.y.z-snapshot.YYYYMMDDHHMMSS-shortsha\`" >> $GITHUB_STEP_SUMMARY
+          elif [ "$TARGET_BRANCH" = "stg" ]; then
+            echo "🎯 **Merging to \`stg\`** will publish a **RELEASE CANDIDATE** version to NPM with \`rc\` tag" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "RC version format: \`x.y.z-rc.N\`" >> $GITHUB_STEP_SUMMARY
+          fi
