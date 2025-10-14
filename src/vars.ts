@@ -1,1 +1,1 @@
-export const VWE_REGISTRY = Symbol('REGISTRY');
+export const WEAVER_REGISTRY = Symbol('REGISTRY');

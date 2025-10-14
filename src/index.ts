@@ -1,3 +1,4 @@
 export { DIContainer } from './container.di';
-export { Ref } from './decorators/ref.decorator';
-export { RefFacade } from './ref-facade.interface';
+export { type Command } from './command';
+export { type ProxyFactory } from './proxy-facade';
+export { WEAVER_REGISTRY } from './vars';
