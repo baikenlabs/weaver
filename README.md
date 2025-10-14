@@ -189,6 +189,7 @@ describe('UserService', () => {
 ### Complete Example
 
 See the [examples/user-service-example.ts](./examples/user-service-example.ts) file for a complete working example demonstrating:
+
 - Command pattern implementation
 - ProxyFacade usage
 - Full CRUD operations
@@ -203,10 +204,12 @@ See the [examples/user-service-example.ts](./examples/user-service-example.ts) f
 Register a service in the container. If a symbol is provided, the second argument is used as the value.
 
 **Parameters:**
+
 - `constructor`: Class constructor or symbol to register
 - `val`: (Optional) Value to register for the symbol
 
 **Example:**
+
 ```typescript
 container.register(UserService);
 container.register(DB_TOKEN, databaseInstance);
@@ -217,10 +220,12 @@ container.register(DB_TOKEN, databaseInstance);
 Register a mock service for testing purposes.
 
 **Parameters:**
+
 - `constructor`: Class constructor to mock
 - `val`: (Optional) Mock implementation
 
 **Example:**
+
 ```typescript
 const mockDb = { connect: vi.fn() };
 container.registerMock(Database, mockDb);
@@ -231,6 +236,7 @@ container.registerMock(Database, mockDb);
 Resolve a service from the container, automatically injecting its dependencies.
 
 **Parameters:**
+
 - `constructor`: Class constructor or symbol to resolve
 - `useMocked`: (Optional) Whether to use mocked dependencies
 - `isFirstExecution`: (Optional) Internal flag for nested resolution
@@ -238,6 +244,7 @@ Resolve a service from the container, automatically injecting its dependencies.
 **Returns:** Instance of the requested service
 
 **Example:**
+
 ```typescript
 const userService = container.resolve<UserService>(UserService);
 ```
@@ -257,6 +264,7 @@ interface Command<TInput, TOutput> {
 Implement this interface to create command classes that can be executed through the ProxyFactory.
 
 **Type Parameters:**
+
 - `TInput`: The type of input the command accepts
 - `TOutput`: The type of output the command returns
 
@@ -267,17 +275,20 @@ Implement this interface to create command classes that can be executed through 
 Execute a command through the DI container with automatic dependency resolution.
 
 **Type Parameters:**
+
 - `TI`: Input type
 - `TO`: Output type
 - `T`: Command class type
 
 **Parameters:**
+
 - `clazz`: Command class constructor (typically from dynamic import)
 - `input`: Input data for the command
 
 **Returns:** Promise resolving to command output
 
 **Example:**
+
 ```typescript
 const result = await proxyFactory.execute(
   (await import('./commands')).CreateUserCommand,

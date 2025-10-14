@@ -110,7 +110,12 @@ class UserService {
 }
 
 // Export commands for the dynamic imports
-export { GetUserCommand, CreateUserCommand, UpdateUserCommand, DeleteUserCommand };
+export {
+  GetUserCommand,
+  CreateUserCommand,
+  UpdateUserCommand,
+  DeleteUserCommand,
+};
 
 // Example usage
 async function main() {
@@ -156,9 +161,9 @@ async function main() {
   console.log('User deleted:', deleted);
 }
 
-// Run the example
-if (require.main === module) {
-  main().catch(console.error);
-}
+// Run the example (uncomment to execute)
+// if (require.main === module) {
+//   main().catch(console.error);
+// }
 
-export { UserService };
+export { UserService, main };
