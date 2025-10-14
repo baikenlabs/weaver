@@ -188,7 +188,7 @@ describe('UserService', () => {
 
 ### Complete Example
 
-See the [examples/user-service-example.ts](./examples/user-service-example.ts) file for a complete working example demonstrating:
+See the [TBD](https://google.com) file for a complete working example demonstrating:
 
 - Command pattern implementation
 - ProxyFacade usage
