@@ -49,6 +49,14 @@ jobs:
             NEW_VERSION="$BASE_VERSION"
             TAG="latest"
             IS_PRERELEASE="false"
+
+            # Check if version already exists in NPM
+            if npm view @baikenlabs/weaver@${NEW_VERSION} version 2>/dev/null; then
+              echo "⚠️ ERROR: Version ${NEW_VERSION} already exists in NPM!"
+              echo "Please update the version in package.json before merging to main."
+              exit 1
+            fi
+
             echo "Publishing RELEASE version: $NEW_VERSION"
 
           elif [ "$BRANCH_NAME" = "dev" ]; then
