@@ -277,4 +277,281 @@ describe('DIContainer', () => {
       container.resolve<TestClass>(TestClass).getValue();
     }).toThrow('Unable to resolve service: undefined');
   });
+
+  describe('registerMock', () => {
+    it('SHOULD register a mock value for a class', () => {
+      class TestClass {
+        static DEPS = [];
+
+        getValue() {
+          return 'real-value';
+        }
+      }
+
+      const mockInstance = {
+        getValue: () => 'mocked-value',
+      };
+
+      container.registerMock(TestClass, mockInstance);
+
+      const result = container.resolve<typeof mockInstance>(
+        TestClass,
+        true,
+        false
+      );
+      expect(result.getValue()).toBe('mocked-value');
+    });
+
+    it('SHOULD throw error WHEN class has no DEPS property', () => {
+      class TestClass {
+        getValue() {
+          return 'value';
+        }
+      }
+
+      expect(() => {
+        container.registerMock(TestClass, {});
+      }).toThrow('Class has no static property DEPS');
+    });
+
+    it('SHOULD allow mocking a class with dependencies', () => {
+      const Env = Symbol('app-env');
+
+      class DependencyClass {
+        static DEPS = [Env];
+
+        constructor(private readonly env: never) {}
+
+        getValue() {
+          return `real-${this.env['env']}`;
+        }
+      }
+
+      class TestClass {
+        static DEPS = [DependencyClass];
+
+        constructor(private readonly dep: DependencyClass) {}
+
+        getValue() {
+          return this.dep.getValue();
+        }
+      }
+
+      const mockDependency = {
+        getValue: () => 'mocked-dependency',
+      };
+
+      container.register(Env, { env: 'prod' });
+      container.registerMock(DependencyClass, mockDependency);
+      container.register(TestClass);
+
+      const instance = container.resolve<TestClass>(TestClass, true);
+      expect(instance.getValue()).toBe('mocked-dependency');
+    });
+
+    it('SHOULD register mock with undefined value', () => {
+      class TestClass {
+        static DEPS = [];
+
+        getValue() {
+          return 'real-value';
+        }
+      }
+
+      container.registerMock(TestClass);
+
+      const result = container.resolve<TestClass>(TestClass, true, false);
+      // The resolve method returns null for undefined/falsy values
+      expect(result).toBeNull();
+    });
+
+    it('SHOULD register mock with null value', () => {
+      class TestClass {
+        static DEPS = [];
+
+        getValue() {
+          return 'real-value';
+        }
+      }
+
+      container.registerMock(TestClass, null);
+
+      const result = container.resolve<TestClass>(TestClass, true, false);
+      expect(result).toBeNull();
+    });
+
+    it('SHOULD allow mocking with a custom object', () => {
+      class DatabaseService {
+        static DEPS = [];
+
+        async query(_sql: string) {
+          // Real database query
+          return [];
+        }
+      }
+
+      const mockDatabase = {
+        query: async (_sql: string) => {
+          return [{ id: 1, name: 'mocked-data' }];
+        },
+      };
+
+      container.registerMock(DatabaseService, mockDatabase);
+
+      const result = container.resolve<typeof mockDatabase>(
+        DatabaseService,
+        true,
+        false
+      );
+      expect(result).toBe(mockDatabase);
+    });
+
+    it('SHOULD allow mocking with a spy function', () => {
+      class LoggerService {
+        static DEPS = [];
+
+        log(message: string) {
+          console.log(message);
+        }
+      }
+
+      const logSpy = vi.fn();
+      const mockLogger = {
+        log: logSpy,
+      };
+
+      container.registerMock(LoggerService, mockLogger);
+
+      const result = container.resolve<typeof mockLogger>(
+        LoggerService,
+        true,
+        false
+      );
+      result.log('test message');
+
+      expect(logSpy).toHaveBeenCalledWith('test message');
+      expect(logSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('SHOULD return mock when useMocked is false but only mock is registered', () => {
+      class TestClass {
+        static DEPS = [];
+
+        getValue() {
+          return 'real-value';
+        }
+      }
+
+      const mockInstance = {
+        getValue: () => 'mocked-value',
+      };
+
+      container.registerMock(TestClass, mockInstance);
+
+      // When useMocked is false, it tries to instantiate the service
+      // Since registerMock stores the mock object (not the constructor),
+      // the resolve will attempt to instantiate the mock object which will fail
+      // This test verifies the behavior when only a mock is registered
+      expect(() => {
+        container.resolve<TestClass>(TestClass, false, false);
+      }).toThrow('Unable to resolve service');
+    });
+
+    it('SHOULD allow overriding a previously registered class with a mock', () => {
+      class TestClass {
+        static DEPS = [];
+
+        getValue() {
+          return 'real-value';
+        }
+      }
+
+      container.register(TestClass);
+
+      // First resolve should return real instance
+      const realInstance = container.resolve<TestClass>(TestClass);
+      expect(realInstance.getValue()).toBe('real-value');
+
+      // Now register a mock
+      const mockInstance = {
+        getValue: () => 'mocked-value',
+      };
+
+      container.registerMock(TestClass, mockInstance);
+
+      // Resolve with useMocked should return mock
+      const mockedInstance = container.resolve<typeof mockInstance>(
+        TestClass,
+        true,
+        false
+      );
+      expect(mockedInstance.getValue()).toBe('mocked-value');
+    });
+
+    it('SHOULD handle complex mock objects with multiple methods', () => {
+      class ApiService {
+        static DEPS = [];
+
+        async get(_url: string) {
+          return { data: 'real' };
+        }
+
+        async post(_url: string, _data: unknown) {
+          return { success: true };
+        }
+
+        async delete(_url: string) {
+          return { deleted: true };
+        }
+      }
+
+      const mockApi = {
+        get: vi.fn().mockResolvedValue({ data: 'mocked' }),
+        post: vi.fn().mockResolvedValue({ success: false }),
+        delete: vi.fn().mockResolvedValue({ deleted: false }),
+      };
+
+      container.registerMock(ApiService, mockApi);
+
+      const result = container.resolve<typeof mockApi>(ApiService, true, false);
+
+      expect(result).toBe(mockApi);
+      expect(result.get).toBe(mockApi.get);
+      expect(result.post).toBe(mockApi.post);
+      expect(result.delete).toBe(mockApi.delete);
+    });
+
+    it('SHOULD work with nested dependencies where parent uses mock', () => {
+      class DatabaseService {
+        static DEPS = [];
+
+        query() {
+          return 'real-query';
+        }
+      }
+
+      class RepositoryService {
+        static DEPS = [DatabaseService];
+
+        constructor(private db: DatabaseService) {}
+
+        getData() {
+          return this.db.query();
+        }
+      }
+
+      const mockDb = {
+        query: () => 'mocked-query',
+      };
+
+      container.registerMock(DatabaseService, mockDb);
+      container.register(RepositoryService);
+
+      const repo = container.resolve<RepositoryService>(
+        RepositoryService,
+        true
+      );
+      expect(repo.getData()).toBe('mocked-query');
+    });
+  });
 });

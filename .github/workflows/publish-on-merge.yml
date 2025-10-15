@@ -1,0 +1,225 @@
+name: Publish on Merge
+
+on:
+  push:
+    branches:
+      - main
+      - stg
+      - dev
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  determine-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      is_prerelease: ${{ steps.version.outputs.is_prerelease }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Determine version
+        id: version
+        run: |
+          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          BASE_VERSION="${CURRENT_VERSION%-*}"
+
+          echo "Branch: $BRANCH_NAME"
+          echo "Current version: $CURRENT_VERSION"
+          echo "Base version: $BASE_VERSION"
+
+          if [ "$BRANCH_NAME" = "main" ]; then
+            # Main branch: Release version
+            NEW_VERSION="$BASE_VERSION"
+            TAG="latest"
+            IS_PRERELEASE="false"
+            echo "Publishing RELEASE version: $NEW_VERSION"
+
+          elif [ "$BRANCH_NAME" = "dev" ]; then
+            # Dev branch: Add snapshot with timestamp and short SHA
+            TIMESTAMP=$(date +%Y%m%d%H%M%S)
+            SHORT_SHA=$(git rev-parse --short HEAD)
+            RANDOM_SUFFIX="${TIMESTAMP}-${SHORT_SHA}"
+            NEW_VERSION="${BASE_VERSION}-snapshot.${RANDOM_SUFFIX}"
+            TAG="snapshot"
+            IS_PRERELEASE="true"
+            echo "Publishing SNAPSHOT version: $NEW_VERSION"
+
+          elif [ "$BRANCH_NAME" = "stg" ]; then
+            # Staging branch: Release candidate
+            # Get the next RC number
+            RC_NUMBER=$(npm view @baikenlabs/weaver versions --json 2>/dev/null | \
+              jq -r ".[] | select(startswith(\"${BASE_VERSION}-rc\"))" | \
+              sed "s/${BASE_VERSION}-rc\.//" | \
+              sort -n | \
+              tail -1)
+
+            if [ -z "$RC_NUMBER" ]; then
+              RC_NUMBER=0
+            else
+              RC_NUMBER=$((RC_NUMBER + 1))
+            fi
+
+            NEW_VERSION="${BASE_VERSION}-rc.${RC_NUMBER}"
+            TAG="rc"
+            IS_PRERELEASE="true"
+            echo "Publishing RELEASE CANDIDATE version: $NEW_VERSION"
+          fi
+
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+
+      - name: Update package.json version
+        run: |
+          npm version ${{ steps.version.outputs.version }} --no-git-tag-version
+
+      - name: Upload package.json
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-json
+          path: package.json
+
+  test:
+    needs: determine-version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build package
+        run: npm run build
+
+  publish-npm:
+    needs: [determine-version, test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+
+      - name: Download package.json
+        uses: actions/download-artifact@v4
+        with:
+          name: package-json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build package
+        run: npm run build
+
+      - name: Publish to NPM
+        run: |
+          if [ "${{ needs.determine-version.outputs.tag }}" = "latest" ]; then
+            echo "Publishing as latest release"
+            npm publish --provenance --access public --tag latest
+          else
+            echo "Publishing with tag: ${{ needs.determine-version.outputs.tag }}"
+            npm publish --provenance --access public --tag ${{ needs.determine-version.outputs.tag }}
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub Release
+        if: needs.determine-version.outputs.tag == 'latest'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ needs.determine-version.outputs.version }}
+          name: Release v${{ needs.determine-version.outputs.version }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Pre-release Tag
+        if: needs.determine-version.outputs.tag != 'latest'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "v${{ needs.determine-version.outputs.version }}" -m "Pre-release v${{ needs.determine-version.outputs.version }}"
+          git push origin "v${{ needs.determine-version.outputs.version }}"
+
+  notify:
+    needs: [determine-version, publish-npm]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Publish Summary
+        run: |
+          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+          VERSION="${{ needs.determine-version.outputs.version }}"
+          TAG="${{ needs.determine-version.outputs.tag }}"
+
+          echo "## 📦 Package Published" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: \`$BRANCH_NAME\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: \`$VERSION\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **NPM Tag**: \`$TAG\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Package**: [@baikenlabs/weaver](https://www.npmjs.com/package/@baikenlabs/weaver)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$TAG" = "latest" ]; then
+            echo "✅ **Production release published**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Install with:" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+            echo "npm install @baikenlabs/weaver@latest" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          elif [ "$TAG" = "snapshot" ]; then
+            echo "📸 **Snapshot version published**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Install with:" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+            echo "npm install @baikenlabs/weaver@snapshot" >> $GITHUB_STEP_SUMMARY
+            echo "# or specific version:" >> $GITHUB_STEP_SUMMARY
+            echo "npm install @baikenlabs/weaver@$VERSION" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          elif [ "$TAG" = "rc" ]; then
+            echo "🎯 **Release candidate published**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Install with:" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+            echo "npm install @baikenlabs/weaver@rc" >> $GITHUB_STEP_SUMMARY
+            echo "# or specific version:" >> $GITHUB_STEP_SUMMARY
+            echo "npm install @baikenlabs/weaver@$VERSION" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          fi
