@@ -96,7 +96,15 @@ jobs:
 
       - name: Update package.json version
         run: |
-          npm version ${{ steps.version.outputs.version }} --no-git-tag-version
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          NEW_VERSION="${{ steps.version.outputs.version }}"
+
+          if [ "$CURRENT_VERSION" != "$NEW_VERSION" ]; then
+            echo "Updating version from $CURRENT_VERSION to $NEW_VERSION"
+            npm version $NEW_VERSION --no-git-tag-version
+          else
+            echo "Version is already $NEW_VERSION, no update needed"
+          fi
 
       - name: Upload package.json
         uses: actions/upload-artifact@v4
