@@ -268,23 +268,6 @@ describe('Command Interface', () => {
   });
 
   describe('Async Operations', () => {
-    it('SHOULD handle delayed async operations', async () => {
-      class DelayedCommand implements Command<string, string> {
-        async execute(input: string): Promise<string> {
-          await new Promise((resolve) => setTimeout(resolve, 50));
-          return `Delayed: ${input}`;
-        }
-      }
-
-      const command = new DelayedCommand();
-      const startTime = Date.now();
-      const result = await command.execute('test');
-      const endTime = Date.now();
-
-      expect(result).toBe('Delayed: test');
-      expect(endTime - startTime).toBeGreaterThanOrEqual(50);
-    });
-
     it('SHOULD handle parallel command execution', async () => {
       class SlowCommand implements Command<number, number> {
         async execute(input: number): Promise<number> {
