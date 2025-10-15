@@ -1,7 +1,7 @@
 # Weaver
 
 <p align="center">
-  <img src="logo.png" alt="Weaver Logo" width="600" />
+  <img src="logo.png" alt="Weaver Logo" width="100%" />
 </p>
 
 A minimal dependency injection container with **Command Pattern and ProxyFacade support**, especially designed for AWS Lambda functions, focused on reducing transpiled code size and cold start times.
